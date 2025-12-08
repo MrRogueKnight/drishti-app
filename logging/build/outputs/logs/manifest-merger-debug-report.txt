@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml:2:13-83
+INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml:2:13-83
+	package
+		INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml
+	xmlns:android
+		ADDED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml:2:23-81
+uses-sdk
+INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml reason: use-sdk injection requested
+INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml
+INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml
+	android:targetSdkVersion
+		INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml
+	android:minSdkVersion
+		INJECTED from D:\SIH Finals 2025 - Team Data Morphers\App\logging\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3985870520320837885.xml

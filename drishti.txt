@@ -1,0 +1,63 @@
+PROJECT DRISHTI - COMPREHENSIVE TECHNICAL OVERVIEW
+
+1. ARCHITECTURE & MODULARITY
+   - Structure: Multi-module Gradle project for separation of concerns and scalability.
+   - Modules:
+     - `:app`: Main entry point, UI integration, and application lifecycle.
+     - `:ui`: Reusable Compose UI components and screens.
+     - `:sensors`: Raw sensor data acquisition (IMU, Location).
+     - `:fusion`: Sensor fusion logic (combining GPS + IMU for better accuracy).
+     - `:vision`: Computer vision implementations (CameraX, TFLite integration).
+     - `:collision`: Physics-based collision detection algorithms.
+     - `:network`: Network status monitoring and API communication.
+     - `:logging`: Local data logging configuration.
+   - Design Pattern: Clean Architecture principles with manual Dependency Injection via `SensorContainer`.
+
+2. MAPPING & VISUALIZATION
+   - Library: OSMDroid (OpenStreetMap for Android) v6.1.18.
+   - Core Features:
+     - Offline-capable tile caching system.
+     - Custom overlays for Location, Navigation, and Compass.
+     - "Drive Mode" with auto-rotation (Heading-Up) and speed-dependent auto-zoom.
+   - Source: OpenStreetMap Mapnik tiles (configurable to others like Bhuvan).
+
+3. NAVIGATION & ROUTING
+   - Provider: OSRM (Open Source Routing Machine).
+   - Implementation: `RouteFetcher` retrieves GeoJSON route geometry via HTTP.
+   - Logic:
+     - Waypoint calculation from user's current GPS location to destination address.
+     - Visual rendering of route polyline on the map.
+     - Auto-recenter logic to keep the vehicle visible during navigation.
+
+4. SENSOR FUSION & DATA
+   - Inputs:
+     - GPS/GNSS: Latitude, Longitude, Speed, Altitude, Bearing.
+     - IMU (Inertial Measurement Unit): Accelerometer and Gyroscope for driver behavior analysis and dead-reckoning support.
+   - Fusion Strategy: Uses `LocationDataProvider` fused with sensor streams to maintain state even when one signal is weak (e.g., GPS in tunnels).
+
+5. COMPUTER VISION & SAFETY (Planned/Integrated)
+   - Framework: TensorFlow Lite (TFLite) for on-device inference.
+   - Model: YOLOv8 Nano (optimized for mobile) for object detection.
+   - Capabilities:
+     - Real-time road object detection (Vehicles, Pedestrians, Signs).
+     - Distance estimation using monocular vision techniques.
+     - Forward Collision Warning (FCW) based on Time-to-Collision (TTC) physics.
+
+6. SYSTEM & CONNECTIVITY
+   - Network: `NetworkStatusHelper` monitors Internet availability for routing and cloud sync.
+   - Health Monitoring:
+     - Battery: Level and charging state monitoring to prevent drain.
+     - Thermal: Device temperature tracking to prevent overheating during intensive tasks (Vision + GPS).
+
+7. UI/UX TECHNOLOGY
+   - Framework: Jetpack Compose (100% Kotlin-based declarative UI).
+   - Components: Material Design 3 (Material You).
+   - Features:
+     - Dynamic padding/layout adaptation.
+     - Real-time state updates (Speedometer, Sensor graphs) using Kotlin Flows (`StateFlow`/`SharedFlow`).
+     - Smooth animations for map transitions and UI interactions.
+
+8. DATA MANAGEMENT
+   - Local Logging: CSV-based logging of sensor streams for post-drive analysis.
+   - Persistence: `PreferenceStore` (DataStore) for saving user settings and login state.
+   - Permissions: Fine-grained handling of Location, Camera, and Storage permissions.

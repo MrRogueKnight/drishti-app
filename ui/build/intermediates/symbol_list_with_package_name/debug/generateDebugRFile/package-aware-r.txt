@@ -1,0 +1,3 @@
+io.github.mrroguekknight.drishti.ui
+id map
+layout fragment_map_view

@@ -1,0 +1,111 @@
+DRISHTI APP - CODE FEATURE MAP
+==============================
+
+This file documents where the code for each major feature is located within the project.
+
+1. DRIVE SCREEN UI
+------------------
+Feature: The main dashboard showing the map, speedometer, and address inputs.
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/MainScreens.kt
+Key Composable: `DriveScreen()`
+Details:
+- Top Bar (Logo, Start/Destination, Max Speed)
+- Map Placeholder (Box with gray background)
+- Live Speed Card (Bottom-Left corner)
+- Auto-logging logic (LaunchedEffect)
+
+2. LOCATION SERVICES
+--------------------
+Feature: Fetching GPS/Network location, calculating speed, and handling permissions.
+File: fusion/src/main/java/io/github/mrroguekknight/drishti/fusion/LocationDataProvider.kt
+Key Class: `LocationDataProvider`
+Details:
+- Requests updates from GPS_PROVIDER and NETWORK_PROVIDER.
+- Manual speed calculation logic (Distance / Time) for low speeds/indoors.
+- High-frequency update configuration (0ms delay).
+
+3. SENSOR DATA
+--------------
+Feature: Reading Accelerometer and Gyroscope data.
+File: fusion/src/main/java/io/github/mrroguekknight/drishti/fusion/SensorDataProvider.kt
+Key Class: `SensorDataProvider`
+Details:
+- Registers SensorEventListeners.
+- Synchronizes sensor readings into `ImuSample` objects.
+
+4. DATA LOGGING (AUTO-LOG)
+--------------------------
+Feature: Saving sensor and location data to CSV files automatically.
+File: fusion/src/main/java/io/github/mrroguekknight/drishti/fusion/DataLogger.kt
+Key Class: `DataLogger`
+Details:
+- Rolling file mechanism (New file every 10 mins).
+- Auto-pruning (Deletes files older than 30 mins).
+- CSV format: Timestamp, Speed, Lat, Lon, AccX, AccY, AccZ, GyroX, GyroY, GyroZ.
+
+5. AUTHENTICATION UI
+--------------------
+Feature: Login, Sign Up, and Forgot Password screens.
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/MainScreens.kt
+Key Composables: `LoginScreen()`, `SignUpScreen()`, `ForgotPasswordScreen()`
+
+6. SYSTEM INITIALIZATION
+------------------------
+Feature: Splash screen checks, permission requests, and sensor availability checks.
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/SystemInitializationManager.kt
+Key Class: `SystemInitializationManager`
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/SplashScreen.kt
+Key Composable: `SplashScreen()`
+
+7. PREFERENCES
+--------------
+Feature: Storing login state and user settings.
+File: app/src/main/java/io/github/mrroguekknight/drishti/data/PreferenceStore.kt
+Key Class: `PreferenceStore`
+
+8. NETWORK SCREEN
+-----------------
+Feature: Real-time network and sensor status visualization.
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/MainScreens.kt
+Key Composable: `NetworkScreen()`
+File: network/src/main/java/io/github/mrroguekknight/drishti/network/NetworkStatusHelper.kt
+Key Class: `NetworkStatusHelper`
+Details:
+- Displays Connection Type, Signal Strength, Link Speed, IP Address.
+- Shows GNSS/NavIC status and coordinates.
+- Shows IMU sensor readings.
+- Cyberpunk UI with `CyberCard` components.
+
+9. STATUS SCREEN
+----------------
+Feature: System health monitoring and pipeline status.
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/MainScreens.kt
+Key Composable: `StatusScreen()`
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/SystemStatusHelper.kt
+Key Class: `SystemStatusHelper`
+Details:
+- Monitors Battery Level and Charging Status.
+- Monitors Memory Usage (Used % and Free MB).
+- Displays simulated AI/Vision pipeline status.
+
+10. SETTINGS SCREEN
+-------------------
+Feature: Application configuration and preferences.
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/MainScreens.kt
+Key Composable: `SettingsScreen()`
+File: app/src/main/java/io/github/mrroguekknight/drishti/data/PreferenceStore.kt
+Key Class: `PreferenceStore`
+Details:
+- Toggles for Visual, Audio, and Vibration Alerts.
+- Dark Mode toggle.
+- Sensitivity Level selection (Low, Medium, High).
+- Safe Distance slider.
+
+11. THEME & DARK MODE
+---------------------
+Feature: Dynamic theme switching based on user preference.
+File: app/src/main/java/io/github/mrroguekknight/drishti/MainActivity.kt
+File: app/src/main/java/io/github/mrroguekknight/drishti/ui/theme/Theme.kt
+Details:
+- `MainActivity` observes `isDarkTheme` from `PreferenceStore`.
+- `DRISHTITheme` applies the corresponding color scheme.
