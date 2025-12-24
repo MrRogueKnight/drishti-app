@@ -62,4 +62,12 @@ dependencies {
     
     // Protobuf
     implementation(libs.protobuf.javalite)
+    
+    // OkHttp for Data Sync
+    // OkHttp for Data Sync
+    implementation(libs.okhttp)
+    
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

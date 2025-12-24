@@ -35,7 +35,9 @@ fun OSMMapView(
     driveMode: Boolean = false,
     bearing: Float = 0f,
     speed: Float = 0f,
+    accuracy: Float = 0f,
     routeWaypoints: List<GeoPoint> = emptyList(),
+    peerLocations: List<io.github.mrroguekknight.drishti.network.NetworkDataSync.PeerLocation> = emptyList(),
     mapPadding: PaddingValues = PaddingValues(0.dp),
     onMapReady: (MapView) -> Unit = {},
     onMapControllerReady: (MapController) -> Unit = {}
@@ -169,11 +171,14 @@ fun OSMMapView(
                 } else {
                     controller.clearRoute()
                 }
+                
+                // Update peers
+                controller.updatePeerMarkers(peerLocations)
             }
             
             // Update navigation overlay
             currentLocation?.let { location ->
-                navigationOverlay?.updateLocation(location, bearing)
+                navigationOverlay?.updateLocation(location, bearing, accuracy)
                 navigationOverlay?.setNavigating(driveMode)
                 
                 // Center on location if in drive mode
@@ -191,6 +196,7 @@ fun OSMMapView(
         onDispose {
             android.util.Log.d("OSMMapView", "Disposing MapView - calling onPause()")
             mapController?.dispose()
+            navigationOverlay?.destroy()
             mapViewInstance?.onPause()
         }
     }

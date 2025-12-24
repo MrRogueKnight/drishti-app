@@ -59,6 +59,20 @@ fun AppRoot(modifier: Modifier = Modifier) {
     }
 
     // 2. Start Sensors Immediately
+    // 2. Start Sensors Immediately
+    
+    // Persistent Data State for Syncing (Hoisted to AppRoot)
+    var lastLat by remember { mutableDoubleStateOf(0.0) }
+    var lastLon by remember { mutableDoubleStateOf(0.0) }
+    var lastSpeed by remember { mutableFloatStateOf(0f) }
+    var lastBearing by remember { mutableFloatStateOf(0f) } // Added bearing state
+    var lastAccX by remember { mutableDoubleStateOf(0.0) }
+    var lastAccY by remember { mutableDoubleStateOf(0.0) }
+    var lastAccZ by remember { mutableDoubleStateOf(0.0) }
+    
+    // Kalman Filter for smoothing
+    val kalmanFilter = remember { io.github.mrroguekknight.drishti.fusion.KalmanFilter2D() }
+
     LaunchedEffect(Unit) {
         // Start Data Logger
         sensorContainer.dataLogger.startLogging()
@@ -66,9 +80,14 @@ fun AppRoot(modifier: Modifier = Modifier) {
         // Start IMU Sensors
         sensorContainer.sensorProvider.start()
         
-        // Collect IMU data for logging
+        // Collect IMU data for logging and syncing
         launch {
             sensorContainer.sensorProvider.imuUpdates.collect { sample ->
+                // Update local state for sync
+                lastAccX = sample.accX
+                lastAccY = sample.accY
+                lastAccZ = sample.accZ
+                
                 sensorContainer.dataLogger.logData(
                     timestamp = sample.timestamp,
                     speed = 0f, // Will be updated by GPS flow
@@ -80,17 +99,60 @@ fun AppRoot(modifier: Modifier = Modifier) {
             }
         }
         
-        // Collect GPS/NavIC location updates (keeps running throughout app lifecycle)
+
+
+        // Collect GPS/NavIC location updates
         launch {
             try {
                 sensorContainer.locationProvider.getLocationUpdates().collect { location ->
-                    // Location is now being tracked continuously
-                    // Individual screens can access locationProvider.getLocationUpdates() 
-                    // to get the same shared flow without restarting the provider
-                    android.util.Log.d("AppRoot", "GPS Update: ${location.latitude}, ${location.longitude}")
+                    // Initialize Filter if needed
+                    if (!kalmanFilter.isInitialized()) {
+                        kalmanFilter.initialize(location.latitude, location.longitude, System.currentTimeMillis())
+                    }
+                    
+                    // Update Filter
+                    kalmanFilter.predict(System.currentTimeMillis(), lastAccX, lastAccY) // Predict using recent IMU
+                    kalmanFilter.update(location.latitude, location.longitude, location.accuracy)
+                    
+                    // Get Smoothed State
+                    val smoothed = kalmanFilter.getState()
+                    
+                    // Update local state for sync using Smoothed Data
+                    lastLat = smoothed.latitude
+                    lastLon = smoothed.longitude
+                    lastSpeed = smoothed.speed.toFloat()
+                    // lastBearing = location.bearing // GPS Bearing (poor at low speed)
+                    
+                    android.util.Log.d("AppRoot", "GPS Update (Smoothed): ${smoothed.latitude}, ${smoothed.longitude}")
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AppRoot", "GPS tracking error", e)
+            }
+        }
+        
+        // Collect Magnetometer Bearing
+        launch {
+            sensorContainer.sensorProvider.bearingUpdates.collect { bearing ->
+                lastBearing = bearing // Smoother, responsive bearing
+                // currentBearing = bearing // Update UI state if needed, but currentBearing is likely inside DriveScreen
+            }
+        }
+        
+        // GLOBAL DATA SYNC LOOP (Running in AppRoot Scope)
+        launch {
+            // Start polling for peers (will only run if syncing is active)
+            io.github.mrroguekknight.drishti.network.NetworkDataSync.startPollingPeers(this)
+            
+            while(true) {
+                kotlinx.coroutines.delay(500) // High frequency sync (user requested normal behavior)
+                if (io.github.mrroguekknight.drishti.network.NetworkDataSync.isSyncing) {
+                     io.github.mrroguekknight.drishti.network.NetworkDataSync.sendData(
+                        System.currentTimeMillis(),
+                        lastLat, lastLon, lastSpeed,
+                        lastBearing,
+                        lastAccX, lastAccY, lastAccZ
+                    )
+                }
             }
         }
     }
@@ -753,6 +815,7 @@ fun DriveScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorConta
     var currentSpeed by remember { mutableFloatStateOf(0f) }
     var currentLat by remember { mutableDoubleStateOf(0.0) }
     var currentLon by remember { mutableDoubleStateOf(0.0) }
+    var currentAccuracy by remember { mutableFloatStateOf(0f) }
     var currentAddress by remember { mutableStateOf("Fetching location...") }
     
     // Navigation state
@@ -787,21 +850,23 @@ fun DriveScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorConta
                 gyroZ = sample.gyroZ
             }
         }
-        
-        // Collect bearing updates from compass
-        launch {
-            sensorProvider.bearingUpdates.collect { bearing ->
-                currentBearing = bearing
-            }
-        }
-        
-        // Collect Location updates
+    }
+
+    val currentGeoPoint = remember(currentLat, currentLon) {
+        if (currentLat != 0.0 && currentLon != 0.0) {
+            io.github.mrroguekknight.drishti.map.createGeoPoint(currentLat, currentLon)
+        } else null
+    }
+
+    // Collect Location updates
+    LaunchedEffect(Unit) {
         launch {
             try {
                 locationProvider.getLocationUpdates().collect { location ->
                     currentSpeed = location.speed // Speed in m/s
                     currentLat = location.latitude
                     currentLon = location.longitude
+                    currentAccuracy = location.accuracy
                     
                     // Geocoding removed as per user request
                     currentAddress = "Current Location"
@@ -827,11 +892,10 @@ fun DriveScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorConta
                     .zIndex(0f) // Ensure map is behind header
             ) {
                 // OpenStreetMap Map with Navigation Features
-                val currentGeoPoint = remember(currentLat, currentLon) {
-                    if (currentLat != 0.0 && currentLon != 0.0) {
-                        io.github.mrroguekknight.drishti.map.createGeoPoint(currentLat, currentLon)
-                    } else null
-                }
+
+                
+                // Collect peer locations
+                val peerLocations by io.github.mrroguekknight.drishti.network.NetworkDataSync.peerLocations.collectAsState()
                 
                 // Update distance and ETA when location or destination changes
                 LaunchedEffect(currentLat, currentLon, destinationGeoPoint) {
@@ -849,12 +913,79 @@ fun DriveScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorConta
                     driveMode = driveMode,
                     bearing = currentBearing,
                     speed = currentSpeed,
+                    accuracy = currentAccuracy,
                     routeWaypoints = routeWaypoints,
+                    peerLocations = peerLocations, // Pass peers to map
                     mapPadding = PaddingValues(top = headerHeight + 16.dp), // Add padding for header
                     onMapControllerReady = { controller ->
                         mapController = controller
                     }
                 )
+            }
+            
+
+            // --- COLLISION WARNING OVERLAY ---
+            // 30% Screen Size Warning Sign
+            val peerLocations by io.github.mrroguekknight.drishti.network.NetworkDataSync.peerLocations.collectAsState()
+            val hasCollisionRisk = peerLocations.any { it.alertLevel == "CRITICAL" } 
+            
+            // Auto-disappear logic (5 seconds)
+            var isAlertVisible by remember { mutableStateOf(false) }
+            
+            LaunchedEffect(hasCollisionRisk) {
+                if (hasCollisionRisk) {
+                    isAlertVisible = true
+                    // VIBRATION LOGIC
+                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= 26) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(1000, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(1000)
+                    }
+                    
+                    kotlinx.coroutines.delay(5000) // Show for 5 seconds
+                    isAlertVisible = false
+                } else {
+                     // Optionally keep it hidden if risk clears
+                     isAlertVisible = false
+                }
+            }
+            
+            if (isAlertVisible) { // Check local state instead of raw risk
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Flashing Red Background Effect (Optional)
+                    
+                    // Warning Icon
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Collision Warning",
+                        tint = Color.Red,
+                        modifier = Modifier
+                            .fillMaxSize(0.3f) // 30% of screen size
+                            .background(Color.Yellow, CircleShape) // Contrast background
+                            .padding(16.dp)
+                    )
+                    
+                    Text(
+                        text = "COLLISION ALERT!",
+                        color = Color.Red,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset(y = 100.dp)
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    )
+                }
+            }
+
+
+
 
                 // Map Controls - Top Right
                 Column(
@@ -951,7 +1082,7 @@ fun DriveScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorConta
                             )
                         }
                     }
-                }
+    
             }
 
             // Header Card - Top Layer
@@ -1407,6 +1538,7 @@ fun NetworkScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorCon
     val sensorProvider = sensorContainer.sensorProvider
 
     // State
+    // State
     val networkStatus by networkHelper.getNetworkStatusFlow().collectAsState(initial = io.github.mrroguekknight.drishti.network.NetworkStatusHelper.NetworkStatus())
     
     var gpsStatus by remember { mutableStateOf("Searching...") }
@@ -1414,6 +1546,17 @@ fun NetworkScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorCon
     
     var imuStatus by remember { mutableStateOf("Standby") }
     var imuData by remember { mutableStateOf("Acc: 0,0,0") }
+
+    LaunchedEffect(Unit) {
+        // Start Auto Discovery
+        io.github.mrroguekknight.drishti.network.ServerDiscovery.startListening { ip ->
+            io.github.mrroguekknight.drishti.network.NetworkDataSync.serverIp = ip
+        }
+    }
+    
+    LaunchedEffect(Unit) {
+        io.github.mrroguekknight.drishti.network.NetworkDataSync.initialize(context)
+    }
 
     // Effects
     LaunchedEffect(Unit) {
@@ -1478,6 +1621,78 @@ fun NetworkScreen(sensorContainer: io.github.mrroguekknight.drishti.ui.SensorCon
                 StatusRow("Speed", "${networkStatus.linkSpeed} Mbps")
                 StatusRow("IP Addr", networkStatus.ipAddress)
                 StatusRow("Freq", "${networkStatus.frequency} MHz")
+            }
+        }
+        
+        // 1.5 Central Sync Card
+        InfoCard(modifier = cardModifier) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudUpload, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("CENTRAL SERVER SYNC", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(12.dp))
+                
+                // IP Input
+                var ipInput by remember { mutableStateOf(io.github.mrroguekknight.drishti.network.NetworkDataSync.serverIp) }
+                
+                // Poll for Auto-Discovery updates (Simplest hack for cross-component sync without Flow)
+                LaunchedEffect(Unit) {
+                    while(true) {
+                         if (ipInput != io.github.mrroguekknight.drishti.network.NetworkDataSync.serverIp) {
+                             ipInput = io.github.mrroguekknight.drishti.network.NetworkDataSync.serverIp
+                         }
+                         kotlinx.coroutines.delay(1000)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = ipInput,
+                    onValueChange = { 
+                        ipInput = it
+                        io.github.mrroguekknight.drishti.network.NetworkDataSync.serverIp = it
+                    },
+                    label = { Text("Server IP (Auto-detecting...)") },
+                    trailingIcon = { Icon(Icons.Default.Autorenew, "Auto") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                // Toggle Logic
+                var isSyncActive by remember { mutableStateOf(io.github.mrroguekknight.drishti.network.NetworkDataSync.isSyncing) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isSyncActive) "Syncing Active" else "Sync Stopped", color = if (isSyncActive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface)
+                    Switch(
+                        checked = isSyncActive,
+                        onCheckedChange = { 
+                            isSyncActive = it
+                            io.github.mrroguekknight.drishti.network.NetworkDataSync.isSyncing = it
+                        }
+                    )
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                
+                // Debug Status Line
+                var statusText by remember { mutableStateOf("") }
+                LaunchedEffect(Unit) {
+                    while(true) {
+                        statusText = io.github.mrroguekknight.drishti.network.NetworkDataSync.syncStatus
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
+                Text(
+                    text = "Status: $statusText",
+                    style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                )
             }
         }
 

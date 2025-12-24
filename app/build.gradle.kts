@@ -98,4 +98,8 @@ dependencies {
     // OSMDroid for map integration
     implementation("org.osmdroid:osmdroid-android:6.1.18")
     implementation("org.osmdroid:osmdroid-wms:6.1.18")
+    
+    // Internal Modules
+    implementation(project(":fusion"))
+    implementation(project(":network"))
 }

@@ -43,12 +43,53 @@ class NavigationOverlay : Overlay() {
         isAntiAlias = true
     }
     
+    private var accuracyMeters: Float = 0f
+    private var smoothedAccuracyAndRadius: Float = 500f // Start big
+    private var accuracyAnimator: android.animation.ValueAnimator? = null
+    
+    // Pulsing effect
+    private var pulseRadiusFactor: Float = 1f
+    private val pulseAnimator = android.animation.ValueAnimator.ofFloat(0.8f, 1.2f).apply {
+        duration = 1500
+        repeatCount = android.animation.ValueAnimator.INFINITE
+        repeatMode = android.animation.ValueAnimator.REVERSE
+        addUpdateListener { 
+            pulseRadiusFactor = it.animatedValue as Float 
+        }
+    }
+
+    init {
+        pulseAnimator.start()
+    }
+
     /**
      * Update the current location and bearing.
      */
-    fun updateLocation(location: GeoPoint, bearing: Float) {
+    fun updateLocation(location: GeoPoint, bearing: Float, accuracy: Float) {
         currentLocation = location
         currentBearing = bearing
+        
+        // Smoothing Algorithm
+        // 1. Clamp accuracy
+        val clampedAccuracy = accuracy.coerceIn(10f, 1000f)
+        
+        // 2. Exponential smoothing (alpha = 0.1 for slow robust smoothing, or 0.4 for reactive)
+        val alpha = 0.2f
+        val newSmoothed = alpha * clampedAccuracy + (1 - alpha) * smoothedAccuracyAndRadius
+        
+        // 3. Animate to new smoothed value
+        animateAccuracyRadius(smoothedAccuracyAndRadius, newSmoothed)
+    }
+    
+    private fun animateAccuracyRadius(from: Float, to: Float) {
+        accuracyAnimator?.cancel()
+        accuracyAnimator = android.animation.ValueAnimator.ofFloat(from, to).apply {
+            duration = 500
+            addUpdateListener { 
+                smoothedAccuracyAndRadius = it.animatedValue as Float
+            }
+            start()
+        }
     }
     
     /**
@@ -66,18 +107,38 @@ class NavigationOverlay : Overlay() {
         // Convert GeoPoint to screen coordinates
         val point = mapView.projection.toPixels(location, null)
         
+        // Calculate radius in pixels for the current smoothed accuracy in meters
+        val metersPerPixel = mapView.projection.metersToEquatorPixels(1f)
+        // Correct way is: meters / metersPerPixel(at lat)
+        // metersToEquatorPixels returns PIXELS for 1 meter? No.
+        // metersToEquatorPixels(float meters) -> float pixels. 
+        // Accuracy radius in pixels:
+        val radiusPixels = mapView.projection.metersToEquatorPixels(smoothedAccuracyAndRadius)
+        
         // Draw accuracy circle (larger, semi-transparent)
-        if (isNavigating) {
-            canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 60f, accuracyCirclePaint)
+        // Using "pulsing" effect on the smoothed radius? Or a separate pulse?
+        // User said: "Keep one circle as accuracy... Add another circle... repeats INFINITE"
+        // Let's make the MAIN accuracy circle breathe slightly for "Alive" feel
+        // Or just the user marker.
+        // Let's implement the user's specific request: Big accuracy circle.
+        
+        if (radiusPixels > 5f) {
+             canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), radiusPixels, accuracyCirclePaint)
         }
         
-        // Draw location marker
+        // Draw location marker (Pulse effect on the marker border?)
+        val markerRadius = 20f * pulseRadiusFactor
         canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 20f, locationCirclePaint)
-        canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 20f, locationBorderPaint)
+        canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), markerRadius, locationBorderPaint)
         
         // Draw heading arrow when navigating
         if (isNavigating) {
             drawHeadingArrow(canvas, point.x.toFloat(), point.y.toFloat(), currentBearing - mapView.mapOrientation)
+        }
+        
+        // Trigger redraw for animation
+        if ((accuracyAnimator?.isRunning == true) || (pulseAnimator.isRunning)) {
+            mapView.postInvalidate()
         }
     }
     
@@ -96,5 +157,10 @@ class NavigationOverlay : Overlay() {
         
         canvas.drawPath(path, headingArrowPaint)
         canvas.restore()
+    }
+    
+    fun destroy() {
+        accuracyAnimator?.cancel()
+        pulseAnimator.cancel()
     }
 }

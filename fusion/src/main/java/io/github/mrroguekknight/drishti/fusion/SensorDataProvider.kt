@@ -22,7 +22,8 @@ class SensorDataProvider(context: Context) {
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-
+    private val linearAcceleration = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+    private val rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
     private var sensorListener: SensorEventListener? = null
     private var sensorThread: HandlerThread? = null
@@ -31,6 +32,12 @@ class SensorDataProvider(context: Context) {
     private var lastAccelData: FloatArray? = null
     private var lastGyroData: FloatArray? = null
     private var lastMagData: FloatArray? = null
+    private var lastLinearAccelData: FloatArray? = null
+    private var lastRotationVectorData: FloatArray? = null
+    
+    // Rotated World Acceleration
+    private var worldAccel = FloatArray(3)
+
     private var lastAccelTimestamp: Long = 0
 
     private val _imuUpdates = MutableSharedFlow<ImuSample>(replay = 1, extraBufferCapacity = 64)
@@ -40,9 +47,10 @@ class SensorDataProvider(context: Context) {
     private val _bearingUpdates = kotlinx.coroutines.flow.MutableStateFlow(0f)
     val bearingUpdates: kotlinx.coroutines.flow.StateFlow<Float> = _bearingUpdates
     
-    // Rotation matrices for bearing calculation
+    // Rotation matrices
     private val rotationMatrix = FloatArray(9)
     private val orientationAngles = FloatArray(3)
+    private val tempRotationMatrix = FloatArray(16) // 4x4 for Rotation Vector support
 
 
     /**
@@ -62,32 +70,48 @@ class SensorDataProvider(context: Context) {
                         Sensor.TYPE_ACCELEROMETER -> {
                             lastAccelData = it.values.clone()
                             lastAccelTimestamp = timestamp
-                            
-                            // Calculate bearing if we have magnetometer data
                             updateBearing()
+                        }
+                        Sensor.TYPE_LINEAR_ACCELERATION -> {
+                            lastLinearAccelData = it.values.clone()
+                            computeWorldAcceleration()
+                        }
+                        Sensor.TYPE_ROTATION_VECTOR -> {
+                            lastRotationVectorData = it.values.clone()
+                            computeWorldAcceleration()
                         }
                         Sensor.TYPE_GYROSCOPE -> {
                             lastGyroData = it.values.clone()
 
-                            // Create a sample only when we have a recent accelerometer reading
-                            // This is a simple synchronization strategy.
-                            if (lastAccelData != null && (timestamp - lastAccelTimestamp) < 20_000_000L) { // 20ms
-                                val sample = ImuSample(
-                                    accX = lastAccelData!![0].toDouble(),
-                                    accY = lastAccelData!![1].toDouble(),
-                                    accZ = lastAccelData!![2].toDouble(),
-                                    gyroX = lastGyroData!![0].toDouble(),
-                                    gyroY = lastGyroData!![1].toDouble(),
-                                    gyroZ = lastGyroData!![2].toDouble(),
-                                    timestamp = timestamp
-                                )
-                                _imuUpdates.tryEmit(sample)
-                            }
+                            // Emit IMU Sample
+                            // We prefer Linear Acceleration for worldAcc fields
+                            // Fallback to regular Accel if Linear not available (though less useful for prediction)
+                            val lx = lastLinearAccelData?.get(0)?.toDouble() ?: 0.0
+                            val ly = lastLinearAccelData?.get(1)?.toDouble() ?: 0.0
+                            val lz = lastLinearAccelData?.get(2)?.toDouble() ?: 0.0
+                            
+                            val wx = worldAccel[0].toDouble()
+                            val wy = worldAccel[1].toDouble()
+                            val wz = worldAccel[2].toDouble()
+
+                            val accToUse = lastAccelData ?: floatArrayOf(0f, 0f, 0f)
+
+                            val sample = ImuSample(
+                                accX = accToUse[0].toDouble(),
+                                accY = accToUse[1].toDouble(),
+                                accZ = accToUse[2].toDouble(),
+                                gyroX = lastGyroData!![0].toDouble(),
+                                gyroY = lastGyroData!![1].toDouble(),
+                                gyroZ = lastGyroData!![2].toDouble(),
+                                worldAccX = wx,
+                                worldAccY = wy,
+                                worldAccZ = wz,
+                                timestamp = timestamp
+                            )
+                            _imuUpdates.tryEmit(sample)
                         }
                         Sensor.TYPE_MAGNETIC_FIELD -> {
                             lastMagData = it.values.clone()
-                            
-                            // Calculate bearing if we have accelerometer data
                             updateBearing()
                         }
                     }
@@ -99,22 +123,46 @@ class SensorDataProvider(context: Context) {
             }
         }
 
-        if (accelerometer != null) {
-            sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_GAME, handler)
-        } else {
-            android.util.Log.w("SensorDataProvider", "Accelerometer not found")
-        }
+        // Register Sensors
+        accelerometer?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME, handler) }
+        gyroscope?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME, handler) }
+        magnetometer?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME, handler) }
+        linearAcceleration?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME, handler) }
+        rotationVector?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_GAME, handler) }
         
-        if (gyroscope != null) {
-            sensorManager.registerListener(sensorListener, gyroscope, SensorManager.SENSOR_DELAY_GAME, handler)
-        } else {
-            android.util.Log.w("SensorDataProvider", "Gyroscope not found")
-        }
+        if (accelerometer == null) android.util.Log.w("SensorDataProvider", "Accelerometer not found")
+        if (gyroscope == null) android.util.Log.w("SensorDataProvider", "Gyroscope not found")
+    }
+
+    private fun computeWorldAcceleration() {
+        val linAcc = lastLinearAccelData
+        val rotVec = lastRotationVectorData
         
-        if (magnetometer != null) {
-            sensorManager.registerListener(sensorListener, magnetometer, SensorManager.SENSOR_DELAY_GAME, handler)
-        } else {
-            android.util.Log.w("SensorDataProvider", "Magnetometer not found")
+        if (linAcc != null && rotVec != null) {
+            // Convert Rotation Vector to Rotation Matrix
+            SensorManager.getRotationMatrixFromVector(tempRotationMatrix, rotVec)
+            
+            // Transform Device Linear Acceleration to World Frame
+            // World = R * Device
+            // R (from getRotationMatrixFromVector) transforms from Device to World.
+            // Wait, Android docs say: "It transforms a vector from the device coordinate system to the world coordinate system."
+            // So: V_world = R * V_device
+            
+            // tempRotationMatrix is 4x4 or 3x3 depending on implementation, but usually flat 9 or 16.
+            // getRotationMatrixFromVector returns 4x4 in a float[16].
+            
+            val r = tempRotationMatrix
+            // x_world = R[0]*x + R[1]*y + R[2]*z
+            // y_world = R[4]*x + R[5]*y + R[6]*z
+            // z_world = R[8]*x + R[9]*y + R[10]*z
+            
+            val x = linAcc[0]
+            val y = linAcc[1]
+            val z = linAcc[2]
+            
+            worldAccel[0] = r[0] * x + r[1] * y + r[2] * z
+            worldAccel[1] = r[4] * x + r[5] * y + r[6] * z
+            worldAccel[2] = r[8] * x + r[9] * y + r[10] * z
         }
     }
     

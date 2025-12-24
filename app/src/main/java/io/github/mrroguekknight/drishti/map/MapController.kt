@@ -243,9 +243,62 @@ class MapController(private val mapView: MapView) {
     /**
      * Clean up resources.
      */
+    /**
+     * Clean up resources.
+     */
     fun dispose() {
         bearingAnimator?.cancel()
         zoomAnimator?.cancel()
         clearRoute()
+        // Clear peer markers
+        peerMarkers.values.forEach { mapView.overlays.remove(it) }
+        peerMarkers.clear()
+    }
+
+    // --- PEER MARKER LOGIC ---
+    private val peerMarkers = mutableMapOf<String, org.osmdroid.views.overlay.Marker>()
+    
+    fun updatePeerMarkers(peers: List<io.github.mrroguekknight.drishti.network.NetworkDataSync.PeerLocation>) {
+        val currentIds = peers.map { it.id }.toSet()
+        
+        // 1. Remove markers for users who left
+        val toRemove = peerMarkers.keys.filter { it !in currentIds }
+        toRemove.forEach { id ->
+            peerMarkers[id]?.let { marker ->
+                mapView.overlays.remove(marker)
+            }
+            peerMarkers.remove(id)
+        }
+        
+        // 2. Add or Update markers
+        peers.forEach { peer ->
+            val location = GeoPoint(peer.lat, peer.lon)
+            
+            if (peerMarkers.containsKey(peer.id)) {
+                // Update existing
+                val marker = peerMarkers[peer.id]!!
+                // Animate to new position for smoothness (optional, just set for now)
+                marker.position = location
+                marker.snippet = "Speed: ${"%.1f".format(peer.speed * 3.6)} km/h"
+                // Force redraw of info window if open
+                if (marker.isInfoWindowShown) {
+                    marker.showInfoWindow()
+                }
+            } else {
+                // Create new
+                val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
+                    position = location
+                    title = "Peer: ${peer.id}"
+                    snippet = "Speed: ${"%.1f".format(peer.speed * 3.6)} km/h"
+                    setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM)
+                    // Use a different icon or color if possible - default OSM marker is fine for now
+                    // icon = ContextCompat.getDrawable(context, R.drawable.ic_peer_car) 
+                }
+                peerMarkers[peer.id] = marker
+                mapView.overlays.add(marker)
+            }
+        }
+        
+        mapView.invalidate()
     }
 }
