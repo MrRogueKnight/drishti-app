@@ -276,7 +276,7 @@ We thank the following contributors for their valuable efforts, collaboration, a
 * **Ayush Pratap Singh** – [@Ayush-Pratap-Singh2006](https://github.com/Ayush-Pratap-Singh2006)
 * **Sudeeksha Tripathi** – [@Sudeekshatripathi123](https://github.com/Sudeekshatripathi123)
 * **Prateek Pandey** – [@Prateek1976](https://github.com/Prateek1976)
-* **Karan Sharma** – [@25CD3014](https://github.com/25CD3014)
+* **Karan Sharma** – [@karansharmaworkspace](https://github.com/karansharmaworkspace)
 ---
 
 
