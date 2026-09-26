@@ -16,10 +16,8 @@ This project is built for **Smart India Hackathon (SIH) 2025**, based on the pro
 
 | Type                    | Link                                                         |
 | ----------------------- | ------------------------------------------------------------ |
-| PowerPoint Presentation |              [Link 1](https://www.canva.com/design/DAG0PGulPQE/bUmDVseqyYGRauKZ1YViRg/edit?utm_content=DAG0PGulPQE&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)                           |
-| App UI/UX Design        |       [Link 2](https://www.canva.com/design/DAG4vkbnVr0/WWLPTw9dvx0rb-des-JK8Q/edit?utm_content=DAG4vkbnVr0&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)                                     |
-| Full Documentation      |               [Link 3](https://docs.google.com/document/d/1yZnSYFqZgoVkcXZsNtuz04FcQQTAMqyoU594vkreMy0/edit?usp=sharing)                             |
-| Demo Video              | [Link 4](https://youtu.be/6OhQV3_fMPE) |
+| Full Documentation      |               [Link](https://docs.google.com/document/d/1yZnSYFqZgoVkcXZsNtuz04FcQQTAMqyoU594vkreMy0/edit?usp=sharing)                             |
+| Demo Video              | [Link](https://youtu.be/6OhQV3_fMPE) |
 
 ---
 
@@ -255,14 +253,14 @@ Build → Run on Android Device
 
 ## 👥 Team: Data Morphers
 
-| S.No | Name               | Role         | Gender | Email ID                 | Mobile No. | Stream  | Academic Year |
+| S.No | Name               | Role         | Gender | Email ID                 |   | Stream  | Academic Year |
 |:----:|--------------------|--------------|:------:|--------------------------|------------|---------|---------------|
-| 1    | Prashant Ranjan    | Team Leader  | M      | 24MC3035@rgipt.ac.in     | 8829013865 | B. Tech | 2nd Year      |
-| 2    | Ritik Prajapati    | Team Member  | M      | 24mc3040@rgipt.ac.in     | 7307255940 | B. Tech | 2nd Year      |
-| 3    | Ayush Pratap Singh | Team Member  | M      | 23ce3010@rgipt.ac.in     | 7000267227 | B. Tech | 3rd Year      |
-| 4    | Sudeeksha Tripathi | Team Member  | F      | 24mc3050@rgipt.ac.in     | 8899094625 | B. Tech | 2nd Year      |
-| 5    | Prateek Pandey     | Team Member  | M      | 24mc3036@rgipt.ac.in     | 9279721870 | B. Tech | 2nd Year      |
-| 6    | Karan Sharma       | Team Member  | M      | 25cd3014@rgipt.ac.in     | 9627379234 | B. Tech | 1st Year      |
+| 1    | Prashant Ranjan    | Team Leader  | M      | 24MC3035@rgipt.ac.in     | | B. Tech | 2nd Year      |
+| 2    | Ritik Prajapati    | Team Member  | M      | 24mc3040@rgipt.ac.in     |  | B. Tech | 2nd Year      |
+| 3    | Ayush Pratap Singh | Team Member  | M      | 23ce3010@rgipt.ac.in     |  | B. Tech | 3rd Year      |
+| 4    | Sudeeksha Tripathi | Team Member  | F      | 24mc3050@rgipt.ac.in     |  | B. Tech | 2nd Year      |
+| 5    | Prateek Pandey     | Team Member  | M      | 24mc3036@rgipt.ac.in     |  | B. Tech | 2nd Year      |
+| 6    | Karan Sharma       | Team Member  | M      | 25cd3014@rgipt.ac.in     |  | B. Tech | 1st Year      |
 
 
 ---
